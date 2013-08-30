@@ -13,6 +13,11 @@
                                  :action (fn [_] (system/exit 0))
                                  :id (gensym)}))
 
+;;; Need another seq of auto-handlers. Search up the stack for
+;;; them. condition-picker should be at the top. Can run that
+;;; at the current stack level.
+;;; If no auto-handlers found, pick a handler and throw out to it.
+
 (defn condition-picker
   "Use something like this for whatever UI might be appropriate.
 In particular, actual interaction might make something resembling 
