@@ -93,22 +93,23 @@ restarts to different exceptions"
 ;;; the debugger. What's a good way to handle that?
 (defmacro handler-bind [locals [& associations] & body]
   `(let locals
-     (let [
-           ;; This approach would be significantly less flexible
-           ;; than Common Lisp's. That calls an arbitrary
-           ;; function that manually invokes a restart. This
-           ;; approach is really just about returning the assigned
-           ;; restart.
-           ;; Both approaches have their pros and cons. Which one
-           ;; truly makes more sense?
-           ;; This one is less flexible, but involves less code.
-           ;; It seems like it would be simple enough to build this
-           ;; from that, but not vice-versa.
-           ~(doall (map (fn [[exception-class restart-symbol]]
-                          {:exception exception-class
-                           :symbol restart-symbol
-                           :locals locals})
-                        associations))]
+     ;; This approach would be significantly less flexible
+     ;; than Common Lisp's. That calls an arbitrary
+     ;; function that manually invokes a restart. This
+     ;; approach is really just about returning the assigned
+     ;; restart.
+     ;; Both approaches have their pros and cons. Which one
+     ;; truly makes more sense?
+     ;; This one is less flexible, but involves less code.
+     ;; It seems like it would be simple enough to build this
+     ;; from that, but not vice-versa.
+     (binding [*restarts* ~(conj 
+                            (doall (map (fn [[exception-class restart-symbol]]
+                                          {:exception exception-class
+                                           :symbol restart-symbol
+                                           :locals locals})
+                                        associations))
+                            *restarts*)]
        ~body)))
 
 (defn -main
