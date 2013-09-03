@@ -43,6 +43,10 @@
 ;; a given restart) and
 ;; :symbol (to actually identify the restart in question)
 (def ^:dynamic *restarts* [])
+;; N.B. To make this work the way I want, there needs to be a debug
+;; restart bound to Throwable, at the very top of the hierarchy. It
+;; will let you explore lexical bindings, values, the call stack
+;; (that may be too ambitious) and then select a 'real' restart.
 
 (defn active-restart
   "What is the symbol identifying the restarts associated with a
