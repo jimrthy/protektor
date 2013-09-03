@@ -77,6 +77,12 @@
 ;; There isn't any way to automatically test entering a debugger.
 ;; But what about bindings?
 
+(facts "Building Blocks"
+       (fact "Set up locals" (build-lexical-dictionary ..k1.. ..v1..
+                                                       ..k2.. ..v2..
+                                                       ..k3.. ..v3..)
+             => {..k1.. ..v1.. ..k2.. ..v2.. ..k3.. ..v3..}))
+
 (facts "Bindings"
        (let [--test-- (fn [f]
                     (restart-case [a 1]

@@ -7,12 +7,24 @@
 ;;; or a feature.
 
 (defn build-lexical-dictionary [ls]
-  (throw (RuntimeException. "Do something with this")))
+  ;; This name is wrong, and the idea is only half-baked at best.
+  ;; Really want to track the bindings that are active at different
+  ;; levels of the call stack.
+  ;; That information probably won't be available for a general
+  ;; case. So go with what I can (which is based on declaring
+  ;; bindings around signal handling).
+  (loop [bindings (partition 2 ls)
+         result {}]
+    (if bindings
+      (let [binding (first bindings)]
+        (recur (rest bindings)
+               (into result {(first binding) (rest binding)})))
+      result)))
 
-(defn extract-handler [[exception-class
-                        [exception-instance]
-                        & body]]
-  (list 'catch exception-class body))
+(defmacro extract-handler [[exception-class
+                            [exception-instance]
+                            & body]]
+  `(catch ~exception-class ~exception-instance ~body))
 
 (defmacro handler-case [locals body & handlers]
   `(let ~locals
@@ -23,10 +35,26 @@
 
 ;;; More interesting pieces
 
+;; Map of thread-local bindings where everything interesting is
+;; stored. It's really a stack of maps.
+;; I've brainstormed about other interesting keys, but the
+;; only ones I'm really using so far are
+;; :exception (for the class of the exception that is associated with
+;; a given restart) and
+;; :symbol (to actually identify the restart in question)
+(def ^:dynamic *restarts* [])
+
 (defn active-restart
-  "What restarts are associated with a given Throwable class?"
+  "What is the symbol identifying the restarts associated with a
+given Throwable class?
+The interesting part is that different levels could bind different
+restarts to different exceptions"
   [thrown]
-  (throw (RuntimeException. "Not Implemented Yet")))
+  (->> *restarts*
+       (filter (fn [restart]
+                 (instance? (:exception restart) thrown)))
+       first
+       :symbol))
 
 (defn pick-restart 
   "Which restart is currently associated with this exception?"
@@ -50,6 +78,13 @@
                ;; unless that option is selected.
                ;; If there's no associated handler, we should wind
                ;; up in the debugger at the point of the exception.
+               ;; Building this to depend on the Java exception
+               ;; and class inheritance systems seems like an
+               ;; implementation detail that
+               ;; would be better to avoid if possible.
+               ;; It means that, honestly, I'm planning for a breaking
+               ;; change.
+               ;; Oh well. I have to start somewhere.
                (throw))
              (throw)))))))
 
@@ -57,7 +92,24 @@
 ;;; Note that this really needs to set up values that will be visible to
 ;;; the debugger. What's a good way to handle that?
 (defmacro handler-bind [locals [& associations] & body]
-  (throw (RuntimeException. "Get this written!")))
+  `(let locals
+     (let [
+           ;; This approach would be significantly less flexible
+           ;; than Common Lisp's. That calls an arbitrary
+           ;; function that manually invokes a restart. This
+           ;; approach is really just about returning the assigned
+           ;; restart.
+           ;; Both approaches have their pros and cons. Which one
+           ;; truly makes more sense?
+           ;; This one is less flexible, but involves less code.
+           ;; It seems like it would be simple enough to build this
+           ;; from that, but not vice-versa.
+           ~(doall (map (fn [[exception-class restart-symbol]]
+                          {:exception exception-class
+                           :symbol restart-symbol
+                           :locals locals})
+                        associations))]
+       ~body)))
 
 (defn -main
   "This is a library...not a program.
