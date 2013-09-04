@@ -6,18 +6,24 @@
 ;;; Not sure whether that qualifies as an actual "limitation"
 ;;; or a feature.
 
-(defmacro build-lexical-dictionary [& ls]
+(defn build-lexical-dictionary 
+  "This version sort-of works. Except that the names of the supplied
+variables will be straight symbols, so this pretty much has to be a macro...
+doesn't it?"
+  [ls]
   ;; This name is wrong, and the idea is only half-baked at best.
   ;; Really want to track the bindings that are active at different
   ;; levels of the call stack.
   ;; That information probably won't be available for a general
   ;; case. So go with what I can (which is based on declaring
   ;; bindings around signal handling).
-  (comment  `(hash-map ~@ls))
-  (comment (let [locals (gensym)]
-             `(let [~locals ~ls]
-                (hash-map ~@locals))))
-  `(apply assoc {} ~ls))
+  (comment (println ls))
+  (let [pairs (partition 2 ls)
+        keys (map first pairs)
+        vals (map second pairs)
+        result (zipmap keys vals)]
+    (comment [pairs keys vals result])
+    result))
 
 (defmacro extract-handler [[exception-class
                             [exception-instance]

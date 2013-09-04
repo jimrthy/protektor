@@ -78,9 +78,9 @@
 ;; But what about bindings?
 
 (facts "Building Blocks"
-       (fact "Set up locals" (build-lexical-dictionary ..k1.. ..v1..
-                                                       ..k2.. ..v2..
-                                                       ..k3.. ..v3..)
+       (fact "Set up locals" (build-lexical-dictionary [ ..k1.. ..v1..
+                                                        ..k2.. ..v2..
+                                                        ..k3.. ..v3..])
              => {..k1.. ..v1.. ..k2.. ..v2.. ..k3.. ..v3..}))
 
 (comment (facts "Bindings"
