@@ -17,25 +17,29 @@ doesn't it?"
   ;; That information probably won't be available for a general
   ;; case. So go with what I can (which is based on declaring
   ;; bindings around signal handling).
-  (comment (println ls))
   (let [pairs (partition 2 ls)
         keys (map first pairs)
         vals (map second pairs)
         result (zipmap keys vals)]
-    (comment [pairs keys vals result])
     result))
 
-(defmacro extract-handler [[exception-class
-                            [exception-instance]
-                            & body]]
-  `(catch ~exception-class ~exception-instance ~body))
+(defn extract-handler
+  "This basically does what I want...except that you're limited to a single body form."
+  [[exception-class
+    [exception-instance]
+    body]]
+  (comment `(catch ~exception-class ~exception-instance ~body))
+  (list 'catch exception-class exception-instance body))
 
 (defmacro handler-case [bindings body & handlers]
-  `(let ~bindings
-     (let [locals ~(build-lexical-dictionary bindings)]
-       (try
-         ~body
-         (map extract-handler handlers)))))
+  (let [locals (gensym)]
+    `(let ~bindings
+       (let [~locals ~(build-lexical-dictionary bindings)]
+         (try
+           ~body
+           ;; Can't map to a macro
+           (comment)
+           ~@(map extract-handler handlers))))))
 
 ;;; More interesting pieces
 
