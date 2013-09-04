@@ -1,6 +1,6 @@
 (ns protektor.core-test
   (:use midje.sweet)
-  (:require [protektor.core :as core]))
+  (:use protektor.core))
 
 (facts "Traditional exception handling"
        (let [basic-handler (fn [x]
