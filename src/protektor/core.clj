@@ -28,7 +28,6 @@ doesn't it?"
   [[exception-class
     [exception-instance]
     body]]
-  (comment `(catch ~exception-class ~exception-instance ~body))
   (list 'catch exception-class exception-instance body))
 
 (defmacro handler-case [bindings body & handlers]
@@ -37,8 +36,6 @@ doesn't it?"
        (let [~locals ~(build-lexical-dictionary bindings)]
          (try
            ~body
-           ;; Can't map to a macro
-           (comment)
            ~@(map extract-handler handlers))))))
 
 ;;; More interesting pieces

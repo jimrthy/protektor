@@ -7,54 +7,51 @@
        (let [basic-handler (fn [x]
                              (handler-case []
                                            (do
-                                             (println x)
                                              (throw (RuntimeException. (str x)))
                                              (fact "Should never get here" => false))
                                            (RuntimeException [ex]
                                                              :handled)))]
-         (fact "Simplistic Handling" (basic-handler ..anything..) => :handled)))
-(comment
-  (let [more-elaborate-handler (fn [x]
-                                 (handler-case []
-                                               (do (println x)
-                                                   (throw x)
-                                                   (fact "Should never get here"
-                                                         => nil))
-                                               (ArithmeticException [_]
-                                                                    :math)
-                                               (IndexOutOfBoundsException [_]
-                                                                          :index)
-                                               (NoSuchElementException [_]
-                                                                       :no-element)
-                                               (RuntimeException [_]
-                                                                 :runtime)
-                                               (Exception [_]
-                                                          :exception)
-                                               (Error [_]
-                                                      :error)
-                                               (Throwable [_]
-                                                          :throwable)))]
-    (fact "Arithmetic Exception"
-          (more-elaborate-handler (ArithmeticException.))
-          => :math)
-    (fact "Index Out of Bounds"
-          (more-elaborate-handler (IndexOutOfBoundsException.))
-          => :index)
-    (fact "No Such Element"
-          (more-elaborate-handler (NoSuchElementException.))
-          => :no-element)
-    (fact "Other Runtime"
-          (more-elaborate-handler (RuntimeException.))
-          => :runtime)
-    (fact "Other Exception"
-          (more-elaborate-handler (ClassNotFoundException.))
-          => :exception)
-    (fact "General Error"
-          (more-elaborate-handler (Error.))
-          => :error)
-    (fact "Root Throwable"
-          (more-elaborate-handler (Throwable.))
-          => :throwable)))
+         (fact "Simplistic Handling" (basic-handler ..anything..) => :handled))
+       (let [more-elaborate-handler (fn [x]
+                                      (handler-case []
+                                                    (do (throw x)
+                                                        (fact "Should never get here"
+                                                              => nil))
+                                                    (ArithmeticException [_]
+                                                                         :math)
+                                                    (IndexOutOfBoundsException [_]
+                                                                               :index)
+                                                    (NullPointerException [_]
+                                                                          :null)
+                                                    (RuntimeException [_]
+                                                                      :runtime)
+                                                    (Exception [_]
+                                                               :exception)
+                                                    (Error [_]
+                                                           :error)
+                                                    (Throwable [_]
+                                                               :throwable)))]
+         (fact "Arithmetic Exception"
+               (more-elaborate-handler (ArithmeticException.))
+               => :math)
+         (fact "Index Out of Bounds"
+               (more-elaborate-handler (IndexOutOfBoundsException.))
+               => :index)
+         (fact "No Such Element"
+               (more-elaborate-handler (NullPointerException.))
+               => :null)
+         (fact "Other Runtime"
+               (more-elaborate-handler (RuntimeException.))
+               => :runtime)
+         (fact "Other Exception"
+               (more-elaborate-handler (ClassNotFoundException.))
+               => :exception)
+         (fact "General Error"
+               (more-elaborate-handler (Error.))
+               => :error)
+         (fact "Root Throwable"
+               (more-elaborate-handler (Throwable.))
+               => :throwable)))
 
 (comment (facts "Programmatic Restarts"
                 (let [test (fn [f]
