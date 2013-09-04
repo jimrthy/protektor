@@ -6,7 +6,9 @@
             [clojure.test :as test]
             [clojure.tools.namespace.repl :refer (refresh refresh-all)]
             [protektor.system :as system])
-  (:use [midje.sweet]))
+  (:use midje.sweet))
+
+(comment (throw (RuntimeException. "why isn't this loading?")))
 
 ;; The system-wide global that doesn't really exist
 (def system nil)
