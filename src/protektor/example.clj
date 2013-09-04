@@ -1,5 +1,6 @@
 (ns protektor.example
-  (:genclass))
+  (:require [protektor.system :as system])
+  (:gen-class))
 
 ;;;; I don't have a solid idea about where this is going...
 ;;;; mainly just brainstorming ideas during my commute.
@@ -10,7 +11,7 @@
                                  :handles Object
                                  :locals {}
                                  :description "Give up and stop the JVM."
-                                 :action (fn [_] (system/exit 0))
+                                 :action (fn [_] (System/exit 0))
                                  :id (gensym)}))
 
 ;;; Need another seq of auto-handlers. Search up the stack for
