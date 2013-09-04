@@ -6,29 +6,27 @@
 ;;; Not sure whether that qualifies as an actual "limitation"
 ;;; or a feature.
 
-(defn build-lexical-dictionary [ls]
+(defmacro build-lexical-dictionary [& ls]
   ;; This name is wrong, and the idea is only half-baked at best.
   ;; Really want to track the bindings that are active at different
   ;; levels of the call stack.
   ;; That information probably won't be available for a general
   ;; case. So go with what I can (which is based on declaring
   ;; bindings around signal handling).
-  (loop [bindings (partition 2 ls)
-         result {}]
-    (if bindings
-      (let [binding (first bindings)]
-        (recur (rest bindings)
-               (into result {(first binding) (rest binding)})))
-      result)))
+  (comment  `(hash-map ~@ls))
+  (comment (let [locals (gensym)]
+             `(let [~locals ~ls]
+                (hash-map ~@locals))))
+  `(apply assoc {} ~ls))
 
 (defmacro extract-handler [[exception-class
                             [exception-instance]
                             & body]]
   `(catch ~exception-class ~exception-instance ~body))
 
-(defmacro handler-case [locals body & handlers]
-  `(let ~locals
-     (let [locals ~(build-lexical-dictionary locals)]
+(defmacro handler-case [bindings body & handlers]
+  `(let ~bindings
+     (let [locals ~(build-lexical-dictionary bindings)]
        (try
          ~body
          (map extract-handler handlers)))))
