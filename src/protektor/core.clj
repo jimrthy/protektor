@@ -1,6 +1,20 @@
 (ns protektor.core
   (:gen-class))
 
+;; Map of thread-local bindings where everything interesting is
+;; stored. It's really a stack of maps.
+;; I've brainstormed about other interesting keys, but the
+;; only ones I'm really using so far are
+;; :exception (for the class of the exception that is associated with
+;; a given restart) and
+;; :symbol (to actually identify the restart in question)
+(def ^:dynamic *restarts* [])
+;; N.B. To make this work the way I want, there needs to be a debug
+;; restart bound to Throwable, at the very top of the hierarchy. It
+;; will let you explore lexical bindings, values, the call stack
+;; (that may be too ambitious) and then select a 'real' restart.
+
+
 ;;; handler-case for "traditional" exception handling.
 ;;; Note that this limits me to signalling exceptions.
 ;;; Not sure whether that qualifies as an actual "limitation"
@@ -30,28 +44,24 @@ doesn't it?"
     body]]
   (list 'catch exception-class exception-instance body))
 
+;; Is there any real point to this being a macro?
 (defmacro handler-case [bindings body & handlers]
-  (let [locals (gensym)]
-    `(let ~bindings
-       (let [~locals ~(build-lexical-dictionary bindings)]
+  (let [local-bindings bindings
+        local-name (gensym)
+        local-dictionary (build-lexical-dictionary local-bindings)
+        stack-frame {:name (str local-name)
+                     :handles nil
+                     :locals local-dictionary
+                     :description "???"
+                     :action (fn [_] (throw))
+                     :id (str (gensym))}]
+    `(binding [*restarts* ~(conj *restarts* stack-frame)]
+       (let ~local-bindings
          (try
            ~body
            ~@(map extract-handler handlers))))))
 
 ;;; More interesting pieces
-
-;; Map of thread-local bindings where everything interesting is
-;; stored. It's really a stack of maps.
-;; I've brainstormed about other interesting keys, but the
-;; only ones I'm really using so far are
-;; :exception (for the class of the exception that is associated with
-;; a given restart) and
-;; :symbol (to actually identify the restart in question)
-(def ^:dynamic *restarts* [])
-;; N.B. To make this work the way I want, there needs to be a debug
-;; restart bound to Throwable, at the very top of the hierarchy. It
-;; will let you explore lexical bindings, values, the call stack
-;; (that may be too ambitious) and then select a 'real' restart.
 
 (defn active-restart
   "What is the symbol identifying the restarts associated with a
