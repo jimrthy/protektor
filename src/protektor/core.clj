@@ -85,14 +85,23 @@ restarts to different exceptions"
 
 (defmacro restart-case [locals body & restarts]
   "Set up exception handling to restart if any are available."
-  `(let ~locals
-     (let [locals ~(build-lexical-dictionary locals)]
+  (let [local-bindings locals
+        stack-frame {:name (str (gensym))
+                     :handles nil
+                     :locals (build-lexical-dictionary local-bindings)
+                     :description "???"
+                     :action (fn [_] (throw))
+                     :id (str (gensym))}
+        restart-symbol (gensym)
+        restart (gensym)
+        ex (gensym)]
+    `(binding [*restarts* ~(conj *restarts* stack-frame)]
        (try
          ~body
-         (catch Throwable ex
-           (if-let [restart-symbol (active-restart (ex))] 
-            (if-let [restart (pick-restart restart-symbol restarts)]
-               ((second restart))
+         (catch Throwable ~ex
+           (if-let [~restart-symbol (active-restart ~ex)] 
+             (if-let [~restart (pick-restart ~restart-symbol ~restarts)]
+               ((second ~restart))
                ;; N.B. I want to be careful not to unwind the stack
                ;; unless that option is selected.
                ;; If there's no associated handler, we should wind
@@ -107,29 +116,35 @@ restarts to different exceptions"
                (throw))
              (throw)))))))
 
+(defn invoke-restart [sym]
+  (throw (RuntimeException. "What should that do?")))
+
 ;;; Associate an exception class with a restart.
 ;;; Note that this really needs to set up values that will be visible to
 ;;; the debugger. What's a good way to handle that?
 (defmacro handler-bind [locals [& associations] & body]
-  `(let locals
-     ;; This approach would be significantly less flexible
-     ;; than Common Lisp's. That calls an arbitrary
-     ;; function that manually invokes a restart. This
-     ;; approach is really just about returning the assigned
-     ;; restart.
-     ;; Both approaches have their pros and cons. Which one
-     ;; truly makes more sense?
-     ;; This one is less flexible, but involves less code.
-     ;; It seems like it would be simple enough to build this
-     ;; from that, but not vice-versa.
-     (binding [*restarts* ~(conj 
-                            (doall (map (fn [[exception-class restart-symbol]]
-                                          {:exception exception-class
-                                           :symbol restart-symbol
-                                           :locals locals})
-                                        associations))
-                            *restarts*)]
-       ~body)))
+  (let [local-bindings locals]
+    `(let ~local-bindings
+       ;; This approach would be significantly less flexible
+       ;; than Common Lisp's. That calls an arbitrary
+       ;; function that manually invokes a restart. This
+       ;; approach is really just about returning the assigned
+       ;; restart.
+       ;; Both approaches have their pros and cons. Which one
+       ;; truly makes more sense?
+       ;; This one is less flexible, but involves less code.
+       ;; It seems like it would be simple enough to build this
+       ;; from that, but not vice-versa.
+       (binding [*restarts* ~@(conj *restarts*
+                                    (map (fn [[exception-class restart-symbol]]
+                                           {:name (str restart-symbol)
+                                            :handles exception-class
+                                            :locals (build-lexical-dictionary local-bindings)
+                                            :description "???"
+                                            :action restart-symbol
+                                            :id (str (gensym))})
+                                         (partition 2 associations)))]
+         ~@body))))
 
 (defn -main
   "This is a library...not a program.

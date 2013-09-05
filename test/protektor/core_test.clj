@@ -55,26 +55,26 @@
           (more-elaborate-handler (Throwable.))
           => :throwable)))
 
-(comment
-  (facts "Programmatic Restarts"
-         (let [test (fn [f]
-                      (restart-case []
-                                    (throw (RuntimeException. "Failed"))
-                                    (..handler1.. (f ..one..))
-                                    (..handler2.. (f ..two..))
-                                    (..handler3.. (f ..three..))))]
-           (handler-bind [] [RuntimeException (fn [_]
-                                                (invoke-restart ..handler1..))]
-                         (fact "#1" (test identity)
-                               => ..one..))
-           (handler-bind [] [RuntimeException (fn [_]
-                                                (invoke-restart ..handler2..))]
-                         (fact "#2" (test identity)
-                               => ..two..))
-           (handler-bind [] [RuntimeException (fn [_]
-                                                (invoke-restart ..handler3..))]
-                         (fact "#3" (test identity)
-                               => ..three..)))))
+(comment)
+(facts "Programmatic Restarts"
+       (let [test (fn [f]
+                    (restart-case []
+                                  (throw (RuntimeException. "Failed"))
+                                  (..handler1.. (f ..one..))
+                                  (..handler2.. (f ..two..))
+                                  (..handler3.. (f ..three..))))]
+         (handler-bind [] [RuntimeException (fn [_]
+                                              (invoke-restart ..handler1..))]
+                       (fact "#1" (test identity)
+                             => ..one..))
+         (handler-bind [] [RuntimeException (fn [_]
+                                              (invoke-restart ..handler2..))]
+                       (fact "#2" (test identity)
+                             => ..two..))
+         (handler-bind [] [RuntimeException (fn [_]
+                                              (invoke-restart ..handler3..))]
+                       (fact "#3" (test identity)
+                             => ..three..))))
 
 ;; There isn't any way to automatically test entering a debugger.
 ;; But what about bindings?

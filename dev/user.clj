@@ -43,3 +43,9 @@
   []
   (stop)
   (refresh :after 'user/go))
+
+
+(defmacro p-expand
+  "Macro-expand body once and pretty-print the outcome"
+  [body]
+  `(pprint (macroexpand-1 ~body)))
