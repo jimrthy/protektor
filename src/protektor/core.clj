@@ -79,9 +79,15 @@ restarts to different exceptions"
   "Which restart is currently associated with this exception?"
   [sym restarts]
   (when-let [possibilities (filter (fn [h]
-                                     (= (first h) sym))
+                                     (= (:name h) sym))
                                    restarts)]
     (first possibilities)))
+
+(defn invoke-restart [name]
+  (if-let [restart (pick-restart name *restarts*)]
+    (throw (Throwable. (:id restart)))
+    (throw (RuntimeException. (str "Psych! No restart for '" name
+                                   "'\nWhat should hapen now?")))))
 
 (defmacro restart-case [locals body & restarts]
   "Set up exception handling to restart if any are available."
@@ -91,33 +97,29 @@ restarts to different exceptions"
                      :locals (build-lexical-dictionary local-bindings)
                      :description "???"
                      :action (fn [_] (throw))
-                     :id (str (gensym))}
-        restart-symbol (gensym)
-        restart (gensym)
-        ex (gensym)]
+                     :id (str (gensym))}]
     `(binding [*restarts* ~(conj *restarts* stack-frame)]
        (try
          ~body
-         (catch Throwable ~ex
-           (if-let [~restart-symbol (active-restart ~ex)] 
-             (if-let [~restart (pick-restart ~restart-symbol ~restarts)]
-               ((second ~restart))
-               ;; N.B. I want to be careful not to unwind the stack
-               ;; unless that option is selected.
-               ;; If there's no associated handler, we should wind
-               ;; up in the debugger at the point of the exception.
-               ;; Building this to depend on the Java exception
-               ;; and class inheritance systems seems like an
-               ;; implementation detail that
-               ;; would be better to avoid if possible.
-               ;; It means that, honestly, I'm planning for a breaking
-               ;; change.
-               ;; Oh well. I have to start somewhere.
+         (catch Throwable ex#
+           (if-let [restart-symbol# (active-restart ex#)] 
+             (if-let [restart# (pick-restart restart-symbol# ~restarts)]
+               (if (= (:id restart#) (.getMessage ex#))
+                 ;; N.B. I want to be careful not to unwind the stack
+                 ;; unless that option is selected.
+                 ;; If there's no associated handler, we should wind
+                 ;; up in the debugger at the point of the exception.
+                 ;; Building this to depend on the Java exception
+                 ;; and class inheritance systems seems like an
+                 ;; implementation detail that
+                 ;; would be better to avoid if possible.
+                 ;; It means that, honestly, I'm planning for a breaking
+                 ;; change.
+                 ;; Oh well. I have to start somewhere.
+                 ((:actior restart#))
+                 (throw))
                (throw))
              (throw)))))))
-
-(defn invoke-restart [sym]
-  (throw (RuntimeException. "What should that do?")))
 
 ;;; Associate an exception class with a restart.
 ;;; Note that this really needs to set up values that will be visible to
