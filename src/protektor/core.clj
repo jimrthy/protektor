@@ -90,7 +90,9 @@ restarts to different exceptions"
                                    "'\nWhat should hapen now?")))))
 
 (defmacro restart-case [locals body & restarts]
-  "Set up exception handling to restart if any are available."
+  "Set up exception handling to restart if any are available.
+The initial (let) looks awfully familiar...is it even vaguely
+reusable? Even if it means a macro-in-a-macro?"
   (let [local-bindings locals
         stack-frame {:name (str (gensym))
                      :handles nil
