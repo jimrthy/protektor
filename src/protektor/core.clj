@@ -1,4 +1,5 @@
 (ns protektor.core
+  (:require [clojure.tools.trace :refer :all])
   (:gen-class))
 
 ;; Map of thread-local bindings where everything interesting is
@@ -69,11 +70,30 @@ given Throwable class?
 The interesting part is that different levels could bind different
 restarts to different exceptions"
   [thrown]
-  (->> *restarts*
-       (filter (fn [restart]
-                 (instance? (:exception restart) thrown)))
-       first
-       :symbol))
+  (println "Trying to find a restart for: " thrown "\nin " *restarts*)
+  ;; Don't actually need to assert here. Except that this really
+  ;; shouldn't be called unless at least 1 restart is set up.
+  ;; For that matter, the debugging restart should always be
+  ;; configured. But that's getting ahead of myself.
+  (assert (seq *restarts*))
+  (comment (->> *restarts*
+                (filter (fn [restart]
+                          (println "Checking: " restart)
+                          (when-let [ex (:handles restart)]
+                            (instance? ex thrown))))
+                first
+                :symbol))
+  (let [filtered (filter (fn [r]
+                           (println "Checking: " r)
+                           (when-let [ex (:handles r)]
+                             (instance? ex thrown)))
+                         *restarts*)]
+    (println "Potentials: " filtered)
+    (let [dict (first filtered)]
+      (println "Chosen: " dict)
+      (let [s (:symbol dict)]
+        (println "Symbol: " s)
+        s))))
 
 (defn pick-restart 
   "Which restart is currently associated with this exception?"
@@ -98,28 +118,36 @@ restarts to different exceptions"
                      :description "???"
                      :action (fn [_] (throw))
                      :id (str (gensym))}]
-    `(binding [*restarts* ~(conj *restarts* stack-frame)]
-       (try
-         ~body
-         (catch Throwable ex#
-           (if-let [restart-symbol# (active-restart ex#)] 
-             (if-let [restart# (pick-restart restart-symbol# ~restarts)]
-               (if (= (:id restart#) (.getMessage ex#))
-                 ;; N.B. I want to be careful not to unwind the stack
-                 ;; unless that option is selected.
-                 ;; If there's no associated handler, we should wind
-                 ;; up in the debugger at the point of the exception.
-                 ;; Building this to depend on the Java exception
-                 ;; and class inheritance systems seems like an
-                 ;; implementation detail that
-                 ;; would be better to avoid if possible.
-                 ;; It means that, honestly, I'm planning for a breaking
-                 ;; change.
-                 ;; Oh well. I have to start somewhere.
-                 ((:actior restart#))
-                 (throw))
-               (throw))
-             (throw)))))))
+    `(do
+       (println "Binding")
+       (binding [*restarts* ~(conj *restarts* stack-frame)]
+         (println "Trying")
+         (try
+           ~body
+           (catch Throwable ex#
+             (println "Caught: " ex#)
+             (if-let [restart-symbol# (active-restart ex#)]
+               (do
+                 (println "Restart Symbol: " restart-symbol#)
+                 (if-let [restart# (pick-restart restart-symbol# ~@restarts)]
+                   (do
+                     (println "Restart: " restart# "Message: " (.getMessage ex#))
+                     (if (= (:id restart#) (.getMessage ex#))
+                       ;; N.B. I want to be careful not to unwind the stack
+                       ;; unless that option is selected.
+                       ;; If there's no associated handler, we should wind
+                       ;; up in the debugger at the point of the exception.
+                       ;; Building this to depend on the Java exception
+                       ;; and class inheritance systems seems like an
+                       ;; implementation detail that
+                       ;; would be better to avoid if possible.
+                       ;; It means that, honestly, I'm planning for a breaking
+                       ;; change.
+                       ;; Oh well. I have to start somewhere.
+                       ((:action restart#))
+                       (throw)))
+                   (throw)))
+               (throw))))))))
 
 ;;; Associate an exception class with a restart.
 ;;; Note that this really needs to set up values that will be visible to
