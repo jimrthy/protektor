@@ -5,6 +5,7 @@
             [clojure.repl :refer :all]
             [clojure.test :as test]
             [clojure.tools.namespace.repl :refer (refresh refresh-all)]
+            [clojure.tools.trace :as trace]
             [protektor.system :as system]
             [protektor.core :as core])
   (:use midje.sweet))
