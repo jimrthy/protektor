@@ -10,4 +10,5 @@
                                   [org.clojure/tools.namespace "0.2.3"]
                                   [org.clojure/java.classpath "0.2.0"]]
                    :source-paths ["dev"]}}
+  :pedantic? :abort
   :main protektor.core)

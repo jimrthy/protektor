@@ -45,22 +45,85 @@ doesn't it?"
     body]]
   (list 'catch exception-class exception-instance body))
 
-;; Is there any real point to this being a macro?
+(defmacro handler-bind [locals [& associations] & body]
+  "Associate an exception class with a restart.
+Note that this really needs to set up values that will be visible to
+the debugger. What's a good way to handle that?"
+  (let [local-bindings locals
+        local-dictionary (build-lexical-dictionary local-bindings)]
+    `(let ~local-bindings
+       ;; This approach would be significantly less flexible
+       ;; than Common Lisp's. That calls an arbitrary
+       ;; function that manually invokes a restart. This
+       ;; approach is really just about returning the assigned
+       ;; restart.
+       ;; Both approaches have their pros and cons. Which one
+       ;; truly makes more sense?
+       ;; This one is less flexible, but involves less code.
+       ;; It seems like it would be simple enough to build this
+       ;; from that, but not vice-versa.
+       (binding [*restarts* ~@(conj *restarts*
+                                    (map (fn [[exception-class restart-symbol]]
+                                           {:name (str restart-symbol)
+                                            :handles exception-class
+                                            :locals local-dictionary
+                                            :description "???"
+                                            :action restart-symbol
+                                            :id (str (gensym))})
+                                         (partition 2 associations)))]
+         ~@body))))
+
+;;; Emacs is screwing up formatting with a docstring. I wonder what's busted.
+  "'classic' try/catch sort-of handler. Except that it lets you set up bindings around your handlers.
+For the benefit of a [currently] hypothetical debugger.
+
+Quoting from _Practical Common Lisp_:
+HANDLER-CASE is the nearest analog in Common Lisp to Java- or Python-style exception handling.
+
+Where you might write this in Java:
+
+  try {
+    doStuff();
+    doMoreStuff();
+  } catch (SomeException se) {
+    recover(se);
+  }
+
+or this in Python:
+
+  try:
+    doStuff()
+    doMoreStuff()
+  except SomeException as se:
+    recover(se)
+
+In Common Lisp you'd write this:
+
+(handler-case
+  (progn
+    (do-stuff)
+    (do-more-stuff))
+  (some-exception (se) (recover se)))
+
+This is my attempt to make this look at least somewhat like idiomatic clojure.
+
+So, it'd look something like:
+(handler-case
+ [local1 (val1)
+  local2 (val2)
+  local3 (val3)]
+ (do
+   (do-stuff)
+   (do-more-stuff))
+ ;; This next syntax feels really wrong.
+ ([some-exception se]
+    (recover se)
+    [other-exception oe]
+      (recover se))) "
 (defmacro handler-case [bindings body & handlers]
-  (let [local-bindings bindings
-        local-name (gensym)
-        local-dictionary (build-lexical-dictionary local-bindings)
-        stack-frame {:name (str local-name)
-                     :handles nil
-                     :locals local-dictionary
-                     :description "???"
-                     :action (fn [_] (throw))
-                     :id (str (gensym))}]
-    `(binding [*restarts* ~(conj *restarts* stack-frame)]
-       (let ~local-bindings
-         (try
-           ~body
-           ~@(map extract-handler handlers))))))
+  `(handler-bind ,bindings
+                 ~@(map extract-handler handlers)
+                 ~body))
 
 ;;; More interesting pieces
 
@@ -149,33 +212,6 @@ restarts to different exceptions"
                    (throw)))
                (throw))))))))
 
-;;; Associate an exception class with a restart.
-;;; Note that this really needs to set up values that will be visible to
-;;; the debugger. What's a good way to handle that?
-(defmacro handler-bind [locals [& associations] & body]
-  (let [local-bindings locals]
-    `(let ~local-bindings
-       ;; This approach would be significantly less flexible
-       ;; than Common Lisp's. That calls an arbitrary
-       ;; function that manually invokes a restart. This
-       ;; approach is really just about returning the assigned
-       ;; restart.
-       ;; Both approaches have their pros and cons. Which one
-       ;; truly makes more sense?
-       ;; This one is less flexible, but involves less code.
-       ;; It seems like it would be simple enough to build this
-       ;; from that, but not vice-versa.
-       (binding [*restarts* ~@(conj *restarts*
-                                    (map (fn [[exception-class restart-symbol]]
-                                           {:name (str restart-symbol)
-                                            :handles exception-class
-                                            :locals (build-lexical-dictionary local-bindings)
-                                            :description "???"
-                                            :action restart-symbol
-                                            :id (str (gensym))})
-                                         (partition 2 associations)))]
-         ~@body))))
-
 (defn -main
   "This is a library...not a program.
 Though invoking the unit tests might make sense here.
@@ -184,4 +220,4 @@ a built-in debugger."
   [& args]
   ;; work around dangerous default behaviour in Clojure
   (alter-var-root #'*read-eval* (constantly false))
-  (println "Hello, World!"))
+  (println "Currently, running this as a stand-alone just doesn't make any sense."))
