@@ -8,7 +8,7 @@
                                            (do
                                              (throw (RuntimeException. (str x)))
                                              (fact "Should never get here" => false))
-                                           (RuntimeException [ex]
+                                           ([RuntimeException [ex]]
                                                              :handled)))]
          (fact "Simplistic Handling" (basic-handler ..anything..) => :handled)))
 

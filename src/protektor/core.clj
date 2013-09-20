@@ -38,20 +38,23 @@ doesn't it?"
         result (zipmap keys vals)]
     result))
 
-(defn extract-handler
-  "This basically does what I want...except that you're limited to a single body form."
-  [[exception-class
-    [exception-instance]
-    body]]
-  (list 'catch exception-class exception-instance body))
-
 (defmacro handler-bind [locals [& associations] & body]
-  "Associate an exception class with a restart.
+  "Associate exception classes with a restarts.
+Parameters:
+locals: establish local bindings, using let
+associations: a seq of handler pairs. Each pair consists of
+1) The type of condition to handle
+2) A 1-arg function that handles the condition.
+
+Major difference between this and handler-case (see below):
+handler-case unwinds the stack. handler-bind does not.
+
 Note that this really needs to set up values that will be visible to
 the debugger. What's a good way to handle that?"
-  (let [local-bindings locals
-        local-dictionary (build-lexical-dictionary local-bindings)]
-    `(let ~local-bindings
+  ;; This pair of nested lets seems like a horrible approach.
+  (let [local-bindings# locals
+        local-dictionary# (build-lexical-dictionary local-bindings#)]
+    `(let ~local-bindings#
        ;; This approach would be significantly less flexible
        ;; than Common Lisp's. That calls an arbitrary
        ;; function that manually invokes a restart. This
@@ -63,17 +66,30 @@ the debugger. What's a good way to handle that?"
        ;; It seems like it would be simple enough to build this
        ;; from that, but not vice-versa.
        (binding [*restarts* ~@(conj *restarts*
-                                    (map (fn [[exception-class restart-symbol]]
+                                    (map (fn [[exception-class restart-fn]]
                                            {:name (str restart-symbol)
                                             :handles exception-class
                                             :locals local-dictionary
                                             :description "???"
-                                            :action restart-symbol
+                                            :action restart-fn
                                             :id (str (gensym))})
                                          (partition 2 associations)))]
          ~@body))))
 
+(defmacro extract-handler
+  "Really just destructure an exception-handling data structure. It exists to
+simplify destructuring a set of multiple handler clauses into the type
+of structure that handler-bind expects."
+  [[exception-class
+    [exception-instance]
+    body]]
+  `[,exception-class
+    (fn [,exception-instance]
+      ,@body)])
+
 ;;; Emacs is screwing up formatting with a docstring. I wonder what's busted.
+
+(defmacro handler-case [bindings body & handlers]
   "'classic' try/catch sort-of handler. Except that it lets you set up bindings around your handlers.
 For the benefit of a [currently] hypothetical debugger.
 
@@ -116,11 +132,16 @@ So, it'd look something like:
    (do-stuff)
    (do-more-stuff))
  ;; This next syntax feels really wrong.
- ([some-exception se]
-    (recover se)
-    [other-exception oe]
-      (recover se))) "
-(defmacro handler-case [bindings body & handlers]
+ [[some-exception [se]
+   (recover se)]
+  [other-exception [oe]
+   (recover se)]])"
+  ;; This approach seems to be totally wrong.
+  ;; It's fighting against the basic way that java exception handling
+  ;; works.
+  ;; I'm probably misunderstanding something very fundamental.
+  ;; My first guess is that this really shouldn't be built on top of
+  ;; handler-bind.
   `(handler-bind ,bindings
                  ~@(map extract-handler handlers)
                  ~body))
