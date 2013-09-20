@@ -1,30 +1,27 @@
 (ns protektor.core
   (:require [clojure.tools.trace :refer :all])
+  (:use [slingshot.slingshot :only [throw+ try+]])
   (:gen-class))
 
-;; Map of thread-local bindings where everything interesting is
-;; stored. It's really a stack of maps.
-;; I've brainstormed about other interesting keys, but the
-;; only ones I'm really using so far are
-;; :exception (for the class of the exception that is associated with
-;; a given restart) and
-;; :symbol (to actually identify the restart in question)
+;;; Map of thread-local bindings where the restart functions are
+;;; stored. It's really a stack of maps.
 (def ^:dynamic *restarts* [])
 ;; N.B. To make this work the way I want, there needs to be a debug
 ;; restart bound to Throwable, at the very top of the hierarchy. It
 ;; will let you explore lexical bindings, values, the call stack
 ;; (that may be too ambitious) and then select a 'real' restart.
+;; Most likely, I also want to set up the JVM's UncaughtExceptionHandler
+;; with something that does pretty much exactly the same thing.
 
+;;; Which restart should be invoked for any given condition being
+;;; signalled? 
+(def ^:dynamic *restart-bindings* {})
 
-;;; handler-case for "traditional" exception handling.
-;;; Note that this limits me to signalling exceptions.
-;;; Not sure whether that qualifies as an actual "limitation"
-;;; or a feature.
+(def ^:dynamic *call-stack* [])
 
 (defn build-lexical-dictionary 
-  "This version sort-of works. Except that the names of the supplied
-variables will be straight symbols, so this pretty much has to be a macro...
-doesn't it?"
+  "Convert local variables (from something like a let form) into
+a dictionary, to make it more reasonable to examine the bindings later."
   [ls]
   ;; This name is wrong, and the idea is only half-baked at best.
   ;; Really want to track the bindings that are active at different
@@ -55,39 +52,27 @@ the debugger. What's a good way to handle that?"
   (let [local-bindings# locals
         local-dictionary# (build-lexical-dictionary local-bindings#)]
     `(let ~local-bindings#
-       ;; This approach would be significantly less flexible
-       ;; than Common Lisp's. That calls an arbitrary
-       ;; function that manually invokes a restart. This
-       ;; approach is really just about returning the assigned
-       ;; restart.
-       ;; Both approaches have their pros and cons. Which one
-       ;; truly makes more sense?
-       ;; This one is less flexible, but involves less code.
-       ;; It seems like it would be simple enough to build this
-       ;; from that, but not vice-versa.
-       (binding [*restarts* ~@(conj *restarts*
+       (binding [*restart-bindings* ~@(conj *restart-bindings*
                                     (map (fn [[exception-class restart-fn]]
-                                           {:name (str restart-symbol)
-                                            :handles exception-class
-                                            :locals local-dictionary
-                                            :description "???"
+                                           {:handles exception-class
                                             :action restart-fn
                                             :id (str (gensym))})
-                                         (partition 2 associations)))]
+                                         (partition 2 associations)))
+                 *call-stack* (conj *call-stack* ,local-dictionary#)]
          ~@body))))
 
-(defmacro extract-handler
-  "Really just destructure an exception-handling data structure. It exists to
+(comment  (defn extract-handler
+            "Really just destructure an exception-handling data structure. It exists to
 simplify destructuring a set of multiple handler clauses into the type
-of structure that handler-bind expects."
-  [[exception-class
-    [exception-instance]
-    body]]
-  `[,exception-class
-    (fn [,exception-instance]
-      ,@body)])
-
-;;; Emacs is screwing up formatting with a docstring. I wonder what's busted.
+of structure that handler-bind expects.
+Can't map across this as a macro, but can't use it as a function because that would
+mean eval'ing the body prematurely."
+            [[exception-class
+              [exception-instance]
+              body]]
+            `[,exception-class
+              (fn [,exception-instance]
+                ,@body)]))
 
 (defmacro handler-case [bindings body & handlers]
   "'classic' try/catch sort-of handler. Except that it lets you set up bindings around your handlers.
@@ -115,7 +100,7 @@ or this in Python:
 
 In Common Lisp you'd write this:
 
-(handler-case
+ (handler-case
   (progn
     (do-stuff)
     (do-more-stuff))
@@ -123,27 +108,23 @@ In Common Lisp you'd write this:
 
 This is my attempt to make this look at least somewhat like idiomatic clojure.
 
-So, it'd look something like:
-(handler-case
+I think it should look something like:
+ (handler-case
  [local1 (val1)
   local2 (val2)
   local3 (val3)]
  (do
    (do-stuff)
    (do-more-stuff))
- ;; This next syntax feels really wrong.
  [[some-exception [se]
    (recover se)]
   [other-exception [oe]
    (recover se)]])"
-  ;; This approach seems to be totally wrong.
-  ;; It's fighting against the basic way that java exception handling
-  ;; works.
-  ;; I'm probably misunderstanding something very fundamental.
-  ;; My first guess is that this really shouldn't be built on top of
-  ;; handler-bind.
   `(handler-bind ,bindings
-                 ~@(map extract-handler handlers)
+                 [~@(map (fn [[ex-class ex-instance ex-handler]]
+                           `[,ex-class
+                             (fn [,ex-instance]
+                               ,@ex-handler)]))]
                  ~body))
 
 ;;; More interesting pieces
@@ -160,6 +141,7 @@ restarts to different exceptions"
   ;; For that matter, the debugging restart should always be
   ;; configured. But that's getting ahead of myself.
   (assert (seq *restarts*))
+  (throw (RuntimeException. "Why did I comment this all out?"))
   (comment (->> *restarts*
                 (filter (fn [restart]
                           (println "Checking: " restart)
@@ -189,26 +171,25 @@ restarts to different exceptions"
 
 (defn invoke-restart [name]
   (if-let [restart (pick-restart name *restarts*)]
-    (throw (Throwable. (:id restart)))
+    (throw+ {:id restart})
     (throw (RuntimeException. (str "Psych! No restart for '" name
-                                   "'\nWhat should hapen now?")))))
+                                   "'\nWhat should happen now?")))))
 
 (defmacro restart-case [locals body & restarts]
   "Set up exception handling to restart if any are available."
   (let [local-bindings locals
+        locals-dictionary (build-lexical-dictionary local-bindings)
         stack-frame {:name (str (gensym))
-                     :handles nil
-                     :locals (build-lexical-dictionary local-bindings)
-                     :description "???"
                      :action (fn [_] (throw))
                      :id (str (gensym))}]
     `(do
        (println "Binding")
-       (binding [*restarts* ~(conj *restarts* stack-frame)]
+       (binding [*restarts* ~(conj *restarts* stack-frame)
+                 *call-stack* ~(conj *call-stack* (locals-dictionary))]
          (println "Trying")
-         (try
+         (try+
            ~body
-           (catch Throwable ex#
+           (catch Object ex#
              (println "Caught: " ex#)
              (if-let [restart-symbol# (active-restart ex#)]
                (do
@@ -229,9 +210,9 @@ restarts to different exceptions"
                        ;; change.
                        ;; Oh well. I have to start somewhere.
                        ((:action restart#))
-                       (throw)))
-                   (throw)))
-               (throw))))))))
+                       (throw+)))
+                   (throw+)))
+               (throw+))))))))
 
 (defn -main
   "This is a library...not a program.
