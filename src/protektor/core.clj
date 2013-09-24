@@ -51,28 +51,15 @@ the debugger. What's a good way to handle that?"
   ;; This pair of nested lets seems like a horrible approach.
   (let [local-bindings# locals
         local-dictionary# (build-lexical-dictionary local-bindings#)]
-    `(let ~local-bindings#
+    `(let local-bindings#
        (binding [*restart-bindings* ~@(conj *restart-bindings*
                                     (map (fn [[exception-class restart-fn]]
                                            {:handles exception-class
                                             :action restart-fn
                                             :id (str (gensym))})
                                          (partition 2 associations)))
-                 *call-stack* (conj *call-stack* ,local-dictionary#)]
+                 *call-stack* (conj *call-stack* local-dictionary#)]
          ~@body))))
-
-(comment  (defn extract-handler
-            "Really just destructure an exception-handling data structure. It exists to
-simplify destructuring a set of multiple handler clauses into the type
-of structure that handler-bind expects.
-Can't map across this as a macro, but can't use it as a function because that would
-mean eval'ing the body prematurely."
-            [[exception-class
-              [exception-instance]
-              body]]
-            `[,exception-class
-              (fn [,exception-instance]
-                ,@body)]))
 
 (defmacro handler-case [bindings body & handlers]
   "'classic' try/catch sort-of handler. Except that it lets you set up bindings around your handlers.
