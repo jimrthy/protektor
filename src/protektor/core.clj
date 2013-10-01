@@ -153,19 +153,56 @@ restarts to different exceptions"
         (println "Symbol: " s)
         s))))
 
-(defn pick-restart 
+(defn pick-restarts
   "Which restart is currently associated with this exception?"
   [sym restarts]
-  (when-let [possibilities (filter (fn [h]
-                                     (= (:name h) sym))
-                                   restarts)]
-    (first possibilities)))
+  (filter (fn [h]
+            (= (:name h) sym))
+          restarts))
 
 (defn invoke-restart [name]
-  (if-let [restart (pick-restart name *restarts*)]
+  (if-let [restart (pick-restarts name *restarts*)]
+    ;; Really shouldn't be throwing anything
     (throw+ {:id restart})
     (throw (RuntimeException. (str "Psych! No restart for '" name
                                    "'\nWhat should happen now?")))))
+
+(defn signal [condition]
+  ;; Something at least vaguely out-of-the-ordinary happened
+  ;; which involves some sort of out-of-band communication up
+  ;; the stack layer.
+  (loop [restarts (pick-restarts condition *restarts*)]
+    (when-let [r (first restarts)]
+      (let [action (:action r)]
+        ;; This is where things get sticky.
+        ;; In common lisp, this really works outside the
+        ;; runtime. Any restart that returns at all
+        ;; didn't handle the condition.
+        ;; Which means that this should be a special form.
+        ;; Since that luxury really isn't available,
+        ;; fudge things.
+        ;; Restarts are required to wrap their return value
+        ;; into a vector. Its first member is whether the
+        ;; restart was handled.
+        ;; If it was, the second is the "real" return value
+        ;; from the signal.
+        (let [result-pair (action r)
+              handled? (first result-pair)]
+          (if handled? 
+            result-pair ; N.B. Returns the handled? indicator!!
+            (recur (rest restarts))))))))
+
+(defn warn [w]
+  (let [[handled? result] (signal w)]
+    (when-not handled?
+      ;; If warnings aren't muffled, send w to STDERR.
+      ;; FIXME: Start here
+      (throw (RuntimeException. "Get this written!"))
+      )))
+
+
+
+;;; Q: What should restart-case expand into?
 
 (defmacro restart-case [locals body & restarts]
   "Run body inside restarts"
