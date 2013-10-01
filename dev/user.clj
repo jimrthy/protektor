@@ -7,10 +7,9 @@
             [clojure.tools.namespace.repl :refer (refresh refresh-all)]
             [clojure.tools.trace :as trace]
             [protektor.system :as system]
-            [protektor.core :as core])
+            [protektor.core :as core]
+            [slingshot.slingshot :as sling])
   (:use midje.sweet))
-
-(comment (throw (RuntimeException. "why isn't this loading?")))
 
 ;; The system-wide global that doesn't really exist
 (def system nil)

@@ -3,6 +3,11 @@
   (:use [slingshot.slingshot :only [throw+ try+]])
   (:gen-class))
 
+;; All these dynamic "globals" are a definite code smell.
+;; FIXME: At the very least, they should be private.
+;; I don't like them. At the same time...they're exactly
+;; what I need. Or so it seems.
+
 ;;; Map of thread-local bindings where the restart functions are
 ;;; stored. It's really a stack of maps.
 (def ^:dynamic *restarts* [])
@@ -163,7 +168,7 @@ restarts to different exceptions"
                                    "'\nWhat should happen now?")))))
 
 (defmacro restart-case [locals body & restarts]
-  "Set up exception handling to restart if any are available."
+  "Run body inside restarts"
   (let [local-bindings locals
         locals-dictionary (build-lexical-dictionary local-bindings)
         stack-frame {:name (str (gensym))
@@ -175,6 +180,10 @@ restarts to different exceptions"
                  *call-stack* ~(conj *call-stack* (locals-dictionary))]
          (println "Trying")
          (try+
+          ;; This doesn't work. The call stack still unwinds up
+          ;; to here.
+          ;; So this approach would be broken, even if the macro
+          ;; worked.
            ~body
            (catch Object ex#
              (println "Caught: " ex#)
@@ -197,9 +206,9 @@ restarts to different exceptions"
                        ;; change.
                        ;; Oh well. I have to start somewhere.
                        ((:action restart#))
-                       (throw+)))
-                   (throw+)))
-               (throw+))))))))
+                       (throw)))
+                   (throw)))
+               (throw))))))))
 
 (defn -main
   "This is a library...not a program.
