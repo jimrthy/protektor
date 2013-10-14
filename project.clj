@@ -12,4 +12,5 @@
                                   [org.clojure/java.classpath "0.2.0"]]
                    :source-paths ["dev"]}}
   :pedantic? :abort
-  :main protektor.core)
+  :main protektor.core
+  :repl-options {:init-ns user})
