@@ -205,7 +205,10 @@ restarts to different exceptions"
 ;;; Q: What should restart-case expand into?
 
 (defmacro restart-case [locals body & restarts]
-  "Run body inside restarts"
+  "Set up exception handling to restart if any are available.
+The initial (let) looks awfully familiar...is it even vaguely
+reusable? Even if it means a macro-in-a-macro?
+Run body inside restarts"
   (let [local-bindings locals
         locals-dictionary (build-lexical-dictionary local-bindings)
         stack-frame {:name (str (gensym))
