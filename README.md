@@ -1,3 +1,21 @@
+Obsolete
+========
+
+It looks like [ribol](https://github.com/zcaudate/ribol) already does everything
+I was hoping for with this library. At least for its initial incarnation.
+
+I (along with pretty much every other clojure newb on the planet, it seems)
+still have some vague hopes of growing this into something that resembles
+a full-fledged debugger. But that's a much more ambitious task, and I'll
+almost definitely be building from there instead of what's here currently.
+
+As such, this should almost definitely just be considered nothing more than a
+pointless and silly historical oddity.
+
+OTOH, it was a learning experience, so I can't call it a waste of time. I'm
+just glad no one else bothered looking into it.
+
+
 protektor
 =========
 
